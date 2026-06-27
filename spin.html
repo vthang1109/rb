@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="nav-title" content="Thật hay Thách">
+<meta name="nav-home"  content="home.html">
+<meta name="nav-back"  content="offline.html">
+<title>Thật hay Thách — VTWorld</title>
+<link rel="stylesheet" href="base.css">
+</head>
+<body>
+<script src="nav.js"></script>
+
+<div class="hero">
+  <h1>Thật hay Thách</h1>
+  <p>Vòng quay quyết định số phận</p>
+</div>
+
+<div class="spin-body">
+  <div class="card">
+    <div class="section-label">Người chơi</div>
+    <div id="player-list"></div>
+    <button id="add-btn" onclick="addPlayer()">+ Thêm người chơi</button>
+  </div>
+
+  <div class="card">
+    <div class="wheel-wrap">
+      <div class="wheel-pointer"></div>
+      <canvas id="spin-canvas" width="280" height="280"></canvas>
+      <button id="spin-btn" onclick="doSpin()">QUAY</button>
+    </div>
+  </div>
+</div>
+
+<div id="result-overlay">
+  <div id="result-card">
+    <div id="res-name"></div>
+    <span id="res-type"></span><br>
+    <button id="spin-again-btn" onclick="closeResult()">Quay tiếp 🎡</button>
+  </div>
+</div>
+
+<script>
+const COLORS = [
+  '#38bdf8','#34d399','#818cf8','#f472b6',
+  '#fb923c','#a3e635','#e879f9','#22d3ee',
+  '#f87171','#facc15','#4ade80','#60a5fa'
+];
+let players = ['An', 'Bình', 'Chi'];
+let spinning = false;
+let angle = 0;
+
+function renderList() {
+  const el = document.getElementById('player-list');
+  el.innerHTML = '';
+  players.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'player-row';
+    row.innerHTML = `
+      <input value="${p}" placeholder="Người chơi ${i+1}"
+        oninput="players[${i}]=this.value; drawWheel()" onfocus="this.select()">
+      <button class="del-btn" onclick="removePlayer(${i})">✕</button>`;
+    el.appendChild(row);
+  });
+}
+
+function addPlayer() {
+  players.push(''); renderList(); drawWheel();
+  setTimeout(() => {
+    const ins = document.querySelectorAll('.player-row input');
+    if (ins.length) ins[ins.length-1].focus();
+  }, 40);
+}
+
+function removePlayer(i) {
+  if (players.length <= 2) { alert('Cần ít nhất 2 người chơi!'); return; }
+  players.splice(i, 1); renderList(); drawWheel();
+}
+
+function drawWheel() {
+  const canvas = document.getElementById('spin-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, cx = W/2, cy = W/2, r = W/2-3;
+  const valid = players.filter(p=>p.trim());
+  const n = valid.length || 1;
+  const arc = (2*Math.PI)/n;
+  ctx.clearRect(0,0,W,W);
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,2*Math.PI);
+  ctx.fillStyle = '#020b18'; ctx.fill();
+  valid.forEach((name, i) => {
+    const a0 = angle+i*arc, a1 = a0+arc;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r,a0,a1); ctx.closePath();
+    ctx.fillStyle = COLORS[i%COLORS.length]+'22'; ctx.fill();
+    ctx.strokeStyle = COLORS[i%COLORS.length]; ctx.lineWidth = 2; ctx.stroke();
+    ctx.save();
+    ctx.translate(cx,cy); ctx.rotate(a0+arc/2);
+    ctx.textAlign='right'; ctx.fillStyle=COLORS[i%COLORS.length];
+    ctx.font=`bold ${Math.min(14,80/n+6)}px Segoe UI,sans-serif`;
+    ctx.shadowColor=COLORS[i%COLORS.length]; ctx.shadowBlur=6;
+    ctx.fillText(name.length>10?name.slice(0,9)+'…':name, r-10, 5);
+    ctx.restore();
+  });
+  ctx.beginPath(); ctx.arc(cx,cy,30,0,2*Math.PI);
+  const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,30);
+  grad.addColorStop(0,'#0ea5e9'); grad.addColorStop(1,'#041428');
+  ctx.fillStyle=grad; ctx.shadowColor='rgba(14,165,233,0.6)'; ctx.shadowBlur=12; ctx.fill();
+  ctx.strokeStyle='rgba(56,189,248,0.4)'; ctx.lineWidth=2; ctx.stroke();
+}
+
+function doSpin() {
+  const valid = players.filter(p=>p.trim());
+  if (valid.length < 2) { alert('Cần ít nhất 2 người có tên!'); return; }
+  if (spinning) return;
+  spinning = true;
+  document.getElementById('spin-btn').disabled = true;
+  const n = valid.length, arc = (2*Math.PI)/n;
+  const idx = Math.floor(Math.random()*n);
+  const spins = (6+Math.floor(Math.random()*4))*2*Math.PI;
+  const needed = ((-angle-idx*arc-arc/2-Math.PI/2)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+  const total = spins+needed, dur = 3600+Math.random()*800;
+  const t0 = performance.now(), a0 = angle;
+  const ease = t => 1-Math.pow(1-t,3);
+  (function frame(now) {
+    const p = Math.min((now-t0)/dur,1);
+    angle = a0+total*ease(p); drawWheel();
+    if (p<1) { requestAnimationFrame(frame); return; }
+    spinning = false;
+    document.getElementById('spin-btn').disabled = false;
+    showResult(valid[idx]);
+  })(t0);
+}
+
+function showResult(name) {
+  const type = Math.random()<.5?'that':'thach';
+  document.getElementById('res-name').textContent = name;
+  const rt = document.getElementById('res-type');
+  rt.textContent = type==='that'?'THẬT':'THÁCH';
+  rt.className   = type==='that'?'badge-that':'badge-thach';
+  document.getElementById('result-overlay').classList.add('show');
+}
+
+function closeResult() {
+  document.getElementById('result-overlay').classList.remove('show');
+}
+
+renderList(); drawWheel();
+</script>
+</body>
+</html>

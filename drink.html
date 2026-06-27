@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="nav-title" content="Bài Uống">
+<meta name="nav-home"  content="home.html">
+<meta name="nav-back"  content="offline.html">
+<title>Bài Uống — VTWorld</title>
+<link rel="stylesheet" href="base.css">
+<style>
+.drink-body { padding: 16px; margin-top: -24px; display: flex; flex-direction: column; gap: 12px; }
+
+.legend-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.legend-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.deck-card { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 16px; }
+.deck-count {
+  font-size: 13px; font-weight: 700; color: var(--text2);
+  letter-spacing: .3px;
+}
+
+.card-stage { perspective: 1200px; padding: 6px 0; }
+.draw-card {
+  --cat-color: #38bdf8;
+  width: 260px; height: 340px; position: relative;
+  transform-style: preserve-3d; transition: transform .55s cubic-bezier(.4,.2,.2,1);
+}
+.draw-card.flipped { transform: rotateY(180deg); }
+.draw-card-back, .draw-card-front {
+  position: absolute; inset: 0; backface-visibility: hidden;
+  border-radius: 18px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 22px;
+  border: 1.5px solid rgba(56,189,248,0.25);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.45);
+}
+.draw-card-back {
+  background: linear-gradient(145deg, #0c2540 0%, #041428 100%);
+}
+.back-logo { font-size: 54px; filter: drop-shadow(0 0 14px rgba(56,189,248,0.5)); }
+.back-text { margin-top: 10px; font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 800; color: var(--blue-mid); letter-spacing: 2px; }
+.draw-card-front {
+  background: rgba(4,20,40,0.97);
+  transform: rotateY(180deg);
+  border-color: var(--cat-color);
+  text-align: center; gap: 14px;
+}
+.cat-badge {
+  display: inline-block; padding: 6px 16px; border-radius: 20px;
+  font-size: 11px; font-weight: 800; letter-spacing: 1px;
+  border: 1px solid var(--cat-color); color: var(--cat-color);
+  background: color-mix(in srgb, var(--cat-color) 15%, transparent);
+}
+.card-text {
+  font-size: 16px; font-weight: 700; color: var(--text);
+  line-height: 1.5; max-height: 220px; overflow-y: auto;
+}
+.card-text::-webkit-scrollbar { width: 4px; }
+.card-text::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.3); border-radius: 4px; }
+
+#draw-btn { max-width: 260px; }
+
+#toast {
+  position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: rgba(4,20,40,0.95); border: 1px solid rgba(56,189,248,0.3);
+  color: var(--text); padding: 10px 18px; border-radius: 30px;
+  font-size: 13px; font-weight: 700; z-index: 500;
+  opacity: 0; pointer-events: none; transition: all .25s;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<script src="nav.js"></script>
+
+<div class="hero">
+  <h1>Bài Uống</h1>
+  <p>Rút lá ngẫu nhiên — không lặp lại — 3000 lá</p>
+</div>
+
+<div class="drink-body">
+  <div class="card">
+    <div class="section-label">Thể loại</div>
+    <div class="legend-row" id="legend"></div>
+  </div>
+
+  <div class="card deck-card">
+    <div class="deck-count" id="deck-count">Còn lại 3000 / 3000 lá</div>
+    <div class="card-stage">
+      <div class="draw-card" id="draw-card">
+        <div class="draw-card-back">
+          <div class="back-logo">🍻</div>
+          <div class="back-text">VTWORLD</div>
+        </div>
+        <div class="draw-card-front">
+          <span class="cat-badge" id="cat-badge">—</span>
+          <div class="card-text" id="card-text">Chạm "RÚT LÁ" để bắt đầu!</div>
+        </div>
+      </div>
+    </div>
+    <button id="draw-btn" class="btn-primary" onclick="handleDraw()">RÚT LÁ 🃏</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="drink-card.js"></script>
+<script>
+const { CATS, buildDeck } = window.DrinkCard;
+
+let deck = [];
+let order = [];
+let ptr = 0;
+let lastIdx = -1;
+let drawing = false;
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function newOrder() {
+  order = shuffle([...Array(deck.length).keys()]);
+  if (order.length > 1 && order[0] === lastIdx) {
+    [order[0], order[1]] = [order[1], order[0]];
+  }
+  ptr = 0;
+}
+
+function renderLegend() {
+  const el = document.getElementById('legend');
+  el.innerHTML = '';
+  Object.values(CATS).forEach(c => {
+    const chip = document.createElement('span');
+    chip.className = 'legend-chip';
+    chip.style.color = c.color;
+    chip.style.background = c.color + '1a';
+    chip.style.borderColor = c.color + '55';
+    chip.textContent = `${c.icon} ${c.label}`;
+    el.appendChild(chip);
+  });
+}
+
+function updateCount() {
+  document.getElementById('deck-count').textContent =
+    `Còn lại ${order.length - ptr} / ${deck.length} lá`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function handleDraw() {
+  if (drawing) return;
+  drawing = true;
+  const btn = document.getElementById('draw-btn');
+  const cardEl = document.getElementById('draw-card');
+  btn.disabled = true;
+
+  const wasFlipped = cardEl.classList.contains('flipped');
+  if (wasFlipped) {
+    cardEl.classList.remove('flipped');
+    setTimeout(() => reveal(cardEl, btn), 280);
+  } else {
+    reveal(cardEl, btn);
+  }
+}
+
+function reveal(cardEl, btn) {
+  if (ptr >= order.length) {
+    newOrder();
+    showToast('🔄 Đã tráo lại bộ bài!');
+  }
+  const idx = order[ptr++];
+  lastIdx = idx;
+  const c = deck[idx];
+  const meta = CATS[c.cat];
+
+  document.getElementById('card-text').textContent = c.text;
+  const badge = document.getElementById('cat-badge');
+  badge.textContent = `${meta.icon} ${meta.label}`;
+  cardEl.style.setProperty('--cat-color', meta.color);
+  updateCount();
+
+  requestAnimationFrame(() => cardEl.classList.add('flipped'));
+  setTimeout(() => { drawing = false; btn.disabled = false; }, 320);
+}
+
+deck = buildDeck(600);
+newOrder();
+renderLegend();
+updateCount();
+</script>
+</body>
+</html>
